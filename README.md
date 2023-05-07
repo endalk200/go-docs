@@ -6,10 +6,23 @@
 
 - [Learn Go](#learn-go)
   - [GoLang History](#golang-history)
-  - [Why GoLang?](#why-golang)
+  - [Why GoLang?](#why-golang-)
   - [Advantages of GoLang](#advantages-of-golang)
   - [Components of the Golang](#components-of-the-golang)
+    - [Compiler](#compiler)
+    - [Standard Library](#standard-library)
+    - [Runtime](#runtime)
+    - [Tools](#tools)
+    - [Third-party packages](#third-party-packages)
   - [Go compiler deep dive](#go-compiler-deep-dive)
+    - [Phase 1 - Lexing, Parsing and AST generation](#phase-1---lexing--parsing-and-ast-generation)
+    - [Phase 2 - Type checking](#phase-2---type-checking)
+    - [Phase 3 - SSA generation](#phase-3---ssa-generation)
+    - [Phase 4 - Machine code generation](#phase-4---machine-code-generation)
+  - [Continue learning](#continue-learning)
+  - [Syntax Basics](/docs/data-types.md#data-types-in-go)
+    - [Arrays](/docs/data-types.md#arrays)
+    - [Slices](/docs/data-types.md#slices)
 
 Google's GoLang, shortened as Go is an open-source programming language that was created in 2009. It is intended for efficient, concurrent, and scalable system programming with an emphasis on simplicity and usability. Go is a popular choice for building networked and distributed systems, web applications, and other types of software because it has strong typing, garbage collection, and syntax similar to C.
 
@@ -347,10 +360,119 @@ We start by parsing a nameList which takes care of the comma-separated names on 
 _Note about AST nodes_ -
 The AST nodes defined by the compiler are not the same ones defined in the `ast` module that is used by go tools like `gofmt`.
 
+### Phase 2 - Type checking
+
+- `cmd/compile/internal/types2` (type checking)
+
+The types2 package is a port of `go/types` to use the syntax package's
+AST instead of `go/ast`.
+
+**IR construction ("noding")**
+
+- `cmd/compile/internal/types` (compiler types)
+- `cmd/compile/internal/ir` (compiler AST)
+- `cmd/compile/internal/typecheck` (AST transformations)
+- `cmd/compile/internal/noder` (create compiler AST)
+
+The compiler middle end uses its own AST definition and representation of Go
+types carried over from when it was written in C. All of its code is written in
+terms of these, so the next step after type checking is to convert the syntax
+and types2 representations to ir and types. This process is referred to as
+"noding."
+
+There are currently two noding implementations:
+
+1. irgen (aka "-G=3" or sometimes "noder2") is the implementation used starting
+   with Go 1.18, and
+
+2. Unified IR is another, in-development implementation (enabled with
+   `GOEXPERIMENT=unified`), which also implements import/export and inlining.
+
+Up through Go 1.18, there was a third noding implementation (just
+"noder" or "-G=0"), which directly converted the pre-type-checked
+syntax representation into IR and then invoked package typecheck's
+type checker. This implementation was removed after Go 1.18, so now
+package typecheck is only used for IR transformations.
+
+**Middle end**
+
+- `cmd/compile/internal/deadcode` (dead code elimination)
+- `cmd/compile/internal/inline` (function call inlining)
+- `cmd/compile/internal/devirtualize` (devirtualization of known interface method calls)
+- `cmd/compile/internal/escape` (escape analysis)
+
+Several optimization passes are performed on the IR representation:
+dead code elimination, (early) devirtualization, function call
+inlining, and escape analysis.
+
+**Walk**
+
+- `cmd/compile/internal/walk` (order of evaluation, desugaring)
+
+The final pass over the IR representation is "walk," which serves two purposes:
+
+1. It decomposes complex statements into individual, simpler statements,
+   introducing temporary variables and respecting order of evaluation. This step
+   is also referred to as "order."
+
+2. It desugars higher-level Go constructs into more primitive ones. For example,
+   `switch` statements are turned into binary search or jump tables, and
+   operations on maps and channels are replaced with runtime calls.
+
+### Phase 3 - SSA generation
+
+- `cmd/compile/internal/ssa` (SSA passes and rules)
+- `cmd/compile/internal/ssagen` (converting IR to SSA)
+
+In this phase, IR is converted into Static Single Assignment (SSA) form, a
+lower-level intermediate representation with specific properties that make it
+easier to implement optimizations and to eventually generate machine code from
+it.
+
+During this conversion, function intrinsics are applied. These are special
+functions that the compiler has been taught to replace with heavily optimized
+code on a case-by-case basis.
+
+Certain nodes are also lowered into simpler components during the AST to SSA
+conversion, so that the rest of the compiler can work with them. For instance,
+the copy builtin is replaced by memory moves, and range loops are rewritten into
+for loops. Some of these currently happen before the conversion to SSA due to
+historical reasons, but the long-term plan is to move all of them here.
+
+Then, a series of machine-independent passes and rules are applied. These do not
+concern any single computer architecture, and thus run on all `GOARCH` variants.
+These passes include dead code elimination, removal of
+unneeded nil checks, and removal of unused branches. The generic rewrite rules
+mainly concern expressions, such as replacing some expressions with constant
+values, and optimizing multiplications and float operations.
+
+### Phase 4 - Machine code generation
+
+- `cmd/compile/internal/ssa` (SSA lowering and arch-specific passes)
+- `cmd/internal/obj` (machine code generation)
+
+The machine-dependent phase of the compiler begins with the "lower" pass, which
+rewrites generic values into their machine-specific variants. For example, on
+amd64 memory operands are possible, so many load-store operations may be combined.
+
+Note that the lower pass runs all machine-specific rewrite rules, and thus it
+currently applies lots of optimizations too.
+
+Once the SSA has been "lowered" and is more specific to the target architecture,
+the final code optimization passes are run. This includes yet another dead code
+elimination pass, moving values closer to their uses, the removal of local
+variables that are never read from, and register allocation.
+
+Other important pieces of work done as part of this step include stack frame
+layout, which assigns stack offsets to local variables, and pointer liveness
+analysis, which computes which on-stack pointers are live at each GC safe point.
+
+At the end of the SSA generation phase, Go functions have been transformed into
+a series of obj.Prog instructions. These are passed to the assembler
+(`cmd/internal/obj`), which turns them into machine code and writes out the
+final object file. The object file will also contain reflect data, export data,
+and debugging information.
+
 ## Continue learning
 
 Now that you have a basic understanding of go on a high level and the components of go, let's dive into the language itself. We will start with the basics and then move on to more advanced topics. Use the table of contents below to dig deep into different concepts in go.
-
-- [Data types in go](/docs/data-types.md#data-types-in-go) - Learn about the different data types in go
-  - [Arrays](/docs/data-types.md#arrays) - Learn about arrays and how to use them
-  - [Slices](/docs/data-types.md#slices) - Learn about slices and how to use them

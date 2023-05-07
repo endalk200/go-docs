@@ -21,6 +21,7 @@ func main() {
 	s[0] = "a"
 	s[1] = "b"
 	s[2] = "c"
+
 	fmt.Println("set:", s)
 	fmt.Println("get:", s[2])
 

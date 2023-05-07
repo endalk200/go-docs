@@ -1,3 +1,7 @@
+/*
+range iterates over elements in a variety of data structures. Let’s see how
+to use range with some of the data structures we’ve already learned.
+*/
 package main
 
 import "fmt"
@@ -11,7 +15,10 @@ func main() {
 	}
 	fmt.Println("sum:", sum)
 
-	// range on arrays and slices provides both the index and value for each entry. Above we didn’t need the index, so we ignored it with the blank identifier _. Sometimes we actually want the indexes though.
+	/* range on arrays and slices provides both the index and value for
+	each entry. Above we didn’t need the index, so we ignored it
+	with the blank identifier _. Sometimes we actually want the indexes though.
+	*/
 	for i, num := range nums {
 		if num == 3 {
 			fmt.Println("index:", i)
@@ -30,7 +37,7 @@ func main() {
 	}
 
 	// range on strings iterates over Unicode code points. The first value is the starting byte index of the rune and the second the rune itself. See Strings and Runes for more details.
-	for i, c := range "go" {
+	for i, c := range "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" {
 		fmt.Println(i, c)
 	}
 }

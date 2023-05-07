@@ -4,9 +4,12 @@ package main
 
 import "fmt"
 
+func vals() (int, int) {
+	return 3, 7 // multiple return values
+}
+
 // Here’s a function that takes two ints and returns their sum as an int.
 func plus(a int, b int) int {
-
 	// Go requires explicit returns, i.e. it won’t automatically return the value of the last expression.
 	return a + b
 }
@@ -17,9 +20,11 @@ func plusPlus(a, b, c int) int {
 }
 
 func main() {
-
 	// Call a function just as you’d expect, with name(args).
 	res := plus(1, 2)
+
+	// a, b := vals() // multiple assignment
+
 	fmt.Println("1+2 =", res)
 	res = plusPlus(1, 2, 3)
 	fmt.Println("1+2+3 =", res)
